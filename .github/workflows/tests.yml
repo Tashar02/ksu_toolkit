@@ -16,6 +16,7 @@ jobs:
           pwd
 
           cd src
+          clang --version 2>&1
           clang -Oz -std=c2x -s -Wl,--gc-sections,--strip-all,-z,norelro -fno-unwind-tables -Wno-int-conversion -Wl,--entry=__start -fsanitize=address -fsanitize=undefined main.c -o toolkit
           
           ./toolkit || true
@@ -33,6 +34,26 @@ jobs:
           ./toolkit --setver || true
           
           ./toolkit --fkuname default default || true
+          
+          rm toolkit
+          gcc --version 2>&1
+          gcc -std=c2x -Wl,--gc-sections,-z,norelro -fno-unwind-tables -Wl,--entry=__start -fno-strict-aliasing -fmerge-all-constants -Wno-unknown-attributes main.c -Wno-attributes -Wno-int-conversion -o toolkit 2>&1
+          
+          ./toolkit || true
+
+          ./toolkit --bench || true
+          
+          ./toolkit --setuid 12345 || true
+          
+          ./toolkit --getuid || true
+          
+          ./toolkit --getlist || true
+          
+          ./toolkit --sulog || true
+          
+          ./toolkit --setver || true
+          
+          ./toolkit --fkuname default default || true          
           
 
 
