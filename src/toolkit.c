@@ -241,8 +241,8 @@ static int toolkit_main(long argc, char **argv, char **envp)
 		if (!fd)
 			goto fail;
 
-		struct ksu_get_info_cmd *cmd = (struct ksu_get_info_cmd *)sp;
-		int ret = sys_ioctl(fd, KSU_IOCTL_GET_INFO, (long)cmd);
+		struct ksu_get_info_legacy_cmd *cmd = (struct ksu_get_info_legacy_cmd *)sp;
+		int ret = sys_ioctl(fd, KSU_IOCTL_GET_INFO_LEGACY, (long)cmd);
 		if (ret)
 			goto fail;
 
