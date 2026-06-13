@@ -127,7 +127,7 @@ static int bench_main()
 		"[4] *unaligned*\n"
 		"[*] Lower is better\n";
 
-	const char newline[] = "\n";
+	char newline[] = "\n";
 
 	if (!__syscall(SYS_faccessat, AT_FDCWD, (long)"/system/bin/su", F_OK, NONE, NONE, NONE))
 		print_out(su_found, sizeof(su_found) - 1 );
@@ -146,7 +146,7 @@ static int bench_main()
 	const char *notsu = "/system/bin/su_";
 	const char *unaligned = notsu + 3;
 
-	print_out(newline, 1 );
+	print_out(newline, sizeof(newline) - 1 );
 
 	// just skip setresuid test when uid is 0
 	if (!__syscall(SYS_getuid, NONE, NONE, NONE, NONE, NONE, NONE))
@@ -157,7 +157,7 @@ static int bench_main()
 #endif
 
 	run_bench(SYS_setresuid, 10000, 10000, 10000, NONE, NONE, NONE, "setresuid:   ");
-	print_out(newline, 1 );
+	print_out(newline, sizeof(newline) - 1 );
 
 skip_setresuid:
 	const void *tests[] = {
