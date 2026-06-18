@@ -92,7 +92,7 @@ start:
  *	params same as malloc duh
  *
  */
-__attribute__((always_inline))
+__attribute__((noinline))
 static void *toolkit_malloc(unsigned long size)
 {
 	size = (size + 7) & ~7; // align 8 bytes up
