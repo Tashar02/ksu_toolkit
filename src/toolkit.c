@@ -17,12 +17,6 @@ send:
 	return 0;
 }
 
-static inline void close_fd_byref(unsigned int *n)
-{
-	if (*n)
-		__syscall(SYS_close, *n, NONE, NONE, NONE, NONE, NONE);
-}
-
 __attribute__((always_inline))
 static int toolkit_main(long argc, char **argv, char **envp)
 {
@@ -40,7 +34,7 @@ static int toolkit_main(long argc, char **argv, char **envp)
 	"./toolkit --fkuname \"6.18\" \"#0 SMP ...\"\n"
 	;
 
-	unsigned int fd __attribute__((cleanup(close_fd_byref))) = 0;
+	unsigned int fd = 0;
 
 	// use once needed, for -Oz atleast, these are put to registers anyway
 	// register char *argv1 __asm__("x19") = argv[1];
