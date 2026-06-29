@@ -22,22 +22,27 @@ static bool check_seccomp() {
 }
 
 __attribute__((always_inline))
-static bool check_access_sc() {
+static bool is_access_syscall_ok() {
 	long pid = __syscall(SYS_clone, SIGCHLD, NULL, NULL, NULL, NULL, NULL);
 	if (pid == -1)
 		return false;
 
 	const char *devnull = "/dev/null";
 
+	volatile int ret = 0;
+
 	if (pid == 0) {
 #if defined(__aarch64__)
-		__syscall(SYS_faccessat2, AT_FDCWD, (long)devnull, F_OK, 0, NONE, NONE);
+		ret = __syscall(SYS_faccessat2, AT_FDCWD, (long)devnull, F_OK, 0, NONE, NONE);
 #else
-		__syscall(SYS_access, (long)devnull, F_OK, NONE, NONE, NONE, NONE);
+		ret = __syscall(SYS_access, (long)devnull, F_OK, NONE, NONE, NONE, NONE);
 #endif
 		__syscall(SYS_exit, 0, NULL, NULL, NULL, NULL, NULL);
 		__builtin_unreachable();
 	}
+
+	if (ret == -ENOSYS)
+		return false; // means its not available
 
 	int status = 0;
 	__syscall(SYS_wait4, pid, &status, 0, NULL, NULL, NULL);
@@ -171,7 +176,7 @@ static int bench_main()
 	const char *unaligned = notsu + 3;
 
 	// check extra access syscalls, SYS_faccessat2 (aarch64), SYS_access
-	bool has_access = check_access_sc();
+	bool has_access_sc = is_access_syscall_ok();
 
 	print_out(extra_lines, sizeof(extra_lines) - 1 );
 
@@ -208,10 +213,10 @@ start_loop:
 	run_bench(SYS_faccessat, AT_FDCWD, (long)tests[j], F_OK, NONE, NONE, NONE, "faccessat:   ");
 
 #if defined(__aarch64__)
-	if (has_access)
+	if (has_access_sc)
 		run_bench(SYS_faccessat2, AT_FDCWD, (long)tests[j], F_OK, 0, NONE, NONE, "faccessat2:  ");
 #else
-	if (has_access)
+	if (has_access_sc)
 		run_bench(SYS_access, (long)tests[j], F_OK, NONE, NONE, NONE, NONE, "access:      ");
 #endif
 
