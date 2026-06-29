@@ -21,6 +21,32 @@ static bool check_seccomp() {
 	return false;
 }
 
+__attribute__((always_inline))
+static bool check_access_sc() {
+	long pid = __syscall(SYS_clone, SIGCHLD, NULL, NULL, NULL, NULL, NULL);
+	if (pid == -1)
+		return false;
+
+	const char *devnull = "/dev/null";
+
+	if (pid == 0) {
+#if defined(__aarch64__)
+		__syscall(SYS_faccessat2, AT_FDCWD, (long)devnull, F_OK, 0, NONE, NONE);
+#else
+		__syscall(SYS_access, (long)devnull, F_OK, NONE, NONE, NONE, NONE);
+#endif
+		__syscall(SYS_exit, 0, NULL, NULL, NULL, NULL, NULL);
+		__builtin_unreachable();
+	}
+
+	int status = 0;
+	__syscall(SYS_wait4, pid, &status, 0, NULL, NULL, NULL);
+	if (WIFSIGNALED(status))
+		return false; // means it died weirdly
+
+	return true;
+}
+
 /**
  * NOTE: this might be actually slower now as this forces a syscall
  * clock_gettime by default is routed through vDSO.
@@ -144,12 +170,8 @@ static int bench_main()
 	const char *notsu = "/system/bin/su_";
 	const char *unaligned = notsu + 3;
 
-#if defined(__aarch64__)
-	bool has_faccessat2 = true;
-	long probe = __syscall(SYS_faccessat2, AT_FDCWD, (long)devnull, F_OK, 0, NONE, NONE);
-	if (probe == -ENOSYS)
-		has_faccessat2 = false;
-#endif
+	// check extra access syscalls, SYS_faccessat2 (aarch64), SYS_access
+	bool has_access = check_access_sc();
 
 	print_out(extra_lines, sizeof(extra_lines) - 1 );
 
@@ -186,10 +208,10 @@ start_loop:
 	run_bench(SYS_faccessat, AT_FDCWD, (long)tests[j], F_OK, NONE, NONE, NONE, "faccessat:   ");
 
 #if defined(__aarch64__)
-	if (has_faccessat2)
+	if (has_access)
 		run_bench(SYS_faccessat2, AT_FDCWD, (long)tests[j], F_OK, 0, NONE, NONE, "faccessat2:  ");
 #else
-	if (!is_seccomp_enabled)
+	if (has_access)
 		run_bench(SYS_access, (long)tests[j], F_OK, NONE, NONE, NONE, NONE, "access:      ");
 #endif
 
