@@ -22,32 +22,39 @@ static bool check_seccomp() {
 }
 
 __attribute__((always_inline))
-static bool is_access_syscall_ok() {
+static bool is_access_syscall_ok()
+{
 	long pid = __syscall(SYS_clone, SIGCHLD, NULL, NULL, NULL, NULL, NULL);
 	if (pid == -1)
 		return false;
 
 	const char *devnull = "/dev/null";
 
-	volatile int ret = 0;
+	if (pid != 0)
+		goto main_thread;
 
-	if (pid == 0) {
+	// child
 #if defined(__aarch64__)
-		ret = __syscall(SYS_faccessat2, AT_FDCWD, (long)devnull, F_OK, 0, NONE, NONE);
+	long ret = __syscall(SYS_faccessat2, AT_FDCWD, (long)devnull, F_OK, 0, NONE, NONE);
 #else
-		ret = __syscall(SYS_access, (long)devnull, F_OK, NONE, NONE, NONE, NONE);
+	long ret = __syscall(SYS_access, (long)devnull, F_OK, NONE, NONE, NONE, NONE);
 #endif
-		__syscall(SYS_exit, 0, NULL, NULL, NULL, NULL, NULL);
-		__builtin_unreachable();
-	}
-
 	if (ret == -ENOSYS)
-		return false; // means its not available
+		__syscall(SYS_exit, 123, NONE, NONE, NONE, NONE, NONE);
+	else
+		__syscall(SYS_exit, 0, NONE, NONE, NONE, NONE, NONE);
+
+	__builtin_unreachable();
+
+main_thread:
 
 	int status = 0;
 	__syscall(SYS_wait4, pid, &status, 0, NULL, NULL, NULL);
 	if (WIFSIGNALED(status))
 		return false; // means it died weirdly
+
+	if (WIFEXITED(status) && WEXITSTATUS(status) == 123)
+		return false;
 
 	return true;
 }
@@ -175,15 +182,24 @@ static int bench_main()
 	const char *notsu = "/system/bin/su_";
 	const char *unaligned = notsu + 3;
 
-	// check extra access syscalls, SYS_faccessat2 (aarch64), SYS_access
-	bool has_access_sc = is_access_syscall_ok();
-
 	print_out(extra_lines, sizeof(extra_lines) - 1 );
 
 	print_out(newline, sizeof(newline) - 1 );
 
-	// just skip setresuid test when uid is 0
-	if (!__syscall(SYS_getuid, NONE, NONE, NONE, NONE, NONE, NONE))
+	bool is_root = !!!__syscall(SYS_getuid, NONE, NONE, NONE, NONE, NONE, NONE);
+
+	// check extra access syscalls, SYS_faccessat2 (aarch64), SYS_access
+#if !defined(__arm__) 
+	bool has_access_sc = is_access_syscall_ok();
+#else
+	bool has_access_sc;
+	if (is_root)
+		has_access_sc = is_access_syscall_ok();
+	else
+		has_access_sc = false;
+#endif
+
+	if (!is_root)
 		goto skip_setresuid;
 
 #if defined(__arm__) 
