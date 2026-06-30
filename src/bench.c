@@ -34,11 +34,7 @@ static bool is_access_syscall_ok()
 		goto main_thread;
 
 	// child
-#if defined(__aarch64__)
 	long ret = __syscall(SYS_faccessat2, AT_FDCWD, (long)devnull, F_OK, 0, NONE, NONE);
-#else
-	long ret = __syscall(SYS_access, (long)devnull, F_OK, NONE, NONE, NONE, NONE);
-#endif
 	if (ret == -ENOSYS)
 		__syscall(SYS_exit, 123, NONE, NONE, NONE, NONE, NONE);
 	else
@@ -188,16 +184,8 @@ static int bench_main()
 
 	bool is_root = !!!__syscall(SYS_getuid, NONE, NONE, NONE, NONE, NONE, NONE);
 
-	// check extra access syscalls, SYS_faccessat2 (aarch64), SYS_access
-#if !defined(__arm__) 
+	// check extra access syscalls, SYS_faccessat2 (aarch64)
 	bool has_access_sc = is_access_syscall_ok();
-#else
-	bool has_access_sc;
-	if (is_root)
-		has_access_sc = is_access_syscall_ok();
-	else
-		has_access_sc = false;
-#endif
 
 	if (!is_root)
 		goto skip_setresuid;
@@ -228,13 +216,8 @@ start_loop:
 	run_bench(SYS_newfstatat, AT_FDCWD, (long)tests[j], (long)&st, AT_SYMLINK_NOFOLLOW, NONE, NONE, "newfstatat:  ");
 	run_bench(SYS_faccessat, AT_FDCWD, (long)tests[j], F_OK, NONE, NONE, NONE, "faccessat:   ");
 
-#if defined(__aarch64__)
 	if (has_access_sc)
 		run_bench(SYS_faccessat2, AT_FDCWD, (long)tests[j], F_OK, 0, NONE, NONE, "faccessat2:  ");
-#else
-	if (has_access_sc)
-		run_bench(SYS_access, (long)tests[j], F_OK, NONE, NONE, NONE, NONE, "access:      ");
-#endif
 
 
 	print_out(newline, 1);
