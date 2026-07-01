@@ -1,3 +1,5 @@
+#include <linux/utsname.h>
+
 #define N_ITERATIONS 1000000
 #define N_ITERATIONS_DIGITS 7
 
@@ -140,38 +142,46 @@ static int bench_main()
 
 	struct stat st;
 
-	const char run_template[] = "[+] run ";
-	char iter_buf[N_ITERATIONS_DIGITS];
-	const char iter_template[] = " iterations per syscall...\n";
+	struct new_utsname uname;
+	__syscall(SYS_uname, (long)&uname, NONE, NONE, NONE, NONE, NONE); // SYS_newuname on syscall table
 
+	char newline[] = "\n";
+
+	const char run_template[] = "[+] kernel: ";
+
+	// maybe writev
 	print_out(run_template, sizeof(run_template) - 1);
-	dumb_itoa(N_ITERATIONS, N_ITERATIONS_DIGITS, iter_buf);
-	print_out(iter_buf, N_ITERATIONS_DIGITS);
-	print_out(iter_template, sizeof(iter_template) - 1);
+	print_out(uname.release, strlen(uname.release));
+	print_out(newline, sizeof(newline) - 1 );
 
-	const char su_found[] = "[+] /system/bin/su found! sucompat is active.\n";
-	const char su_not_found[] = "[-] /system/bin/su not found! sucompat is disabled.\n";
-	const char seccomp_enabled[] = "[+] seccomp enabled\n";
-	const char seccomp_disabled[] = "[-] seccomp disabled\n";
+	char sucompat_seccomp_template[] = "[+] sucompat: ? | seccomp: ? \n";
+
 	const char extra_lines[] = 
-		"[!] note:\n"
+		"[!] tests:\n"
 		"[1] NULL\n"
 		"[2] /dev/null\n"
 		"[3] /system/bin/su_\n"
 		"[4] *unaligned*\n"
 		"[*] Lower is better\n";
 
-	char newline[] = "\n";
-
 	if (!__syscall(SYS_faccessat, AT_FDCWD, (long)"/system/bin/su", F_OK, NONE, NONE, NONE))
-		print_out(su_found, sizeof(su_found) - 1 );
+		sucompat_seccomp_template[14] = 49;
 	else
-		print_out(su_not_found, sizeof(su_not_found) - 1 );
+		sucompat_seccomp_template[14] = 48;
 
 	if (is_seccomp_enabled)
-		print_out(seccomp_enabled, sizeof(seccomp_enabled) - 1 );
+		sucompat_seccomp_template[27] = 49;
 	else
-		print_out(seccomp_disabled, sizeof(seccomp_disabled) - 1 );
+		sucompat_seccomp_template[27] = 48;
+
+	print_out(sucompat_seccomp_template, sizeof(sucompat_seccomp_template) - 1 );
+
+	char iter_buf[N_ITERATIONS_DIGITS];
+	const char iter_template[] = "[+] iterations: ";
+	dumb_itoa(N_ITERATIONS, N_ITERATIONS_DIGITS, iter_buf);
+	print_out(iter_template, sizeof(iter_template) - 1);
+	print_out(iter_buf, N_ITERATIONS_DIGITS);
+	print_out(newline, sizeof(newline) - 1 );
 
 	const void *nothing = nullptr;
 	const char *devnull = "/dev/null";
