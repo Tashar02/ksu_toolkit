@@ -197,7 +197,7 @@ static int bench_main()
 	// check extra access syscalls, SYS_faccessat2 (aarch64)
 	bool has_access_sc = is_access_syscall_ok();
 
-	if (!is_root)
+	if (is_root)
 		goto skip_setresuid;
 
 #if defined(__arm__) 
