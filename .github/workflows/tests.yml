@@ -10,6 +10,11 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v6
 
+      - name: Setup zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: master
+
       - name: compile and test
         run: |
           echo "tests"
@@ -55,5 +60,25 @@ jobs:
           
           ./toolkit --fkuname default default || true          
           
+          
+          rm toolkit
+          zig cc --version 2>&1
+          zig version 2>&1
+          zig cc -target x86_64-linux -s -Oz -Wno-int-conversion -std=c23 -static -Wl,--gc-sections,-z,norelro -fno-unwind-tables -Wl,--entry=__start -flto -fmerge-all-constants -Wno-unknown-attributes main.c -o toolkit 2>&1
+          
+          ./toolkit || true
 
-
+          ./toolkit --bench || true
+          
+          ./toolkit --setuid 12345 || true
+          
+          ./toolkit --getuid || true
+          
+          ./toolkit --getlist || true
+          
+          ./toolkit --sulog || true
+          
+          ./toolkit --setver || true
+          
+          ./toolkit --fkuname default default || true          
+          
