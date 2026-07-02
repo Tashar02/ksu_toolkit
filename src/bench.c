@@ -18,45 +18,31 @@ char result_template[] = "(0000000 ns avg)\n";
 char box_template[] = "[ ] ";
 char sucompat_seccomp_template[] = "[+] sucompat: ? | seccomp: ? \n";
 
-__attribute__((always_inline))
-static bool check_seccomp() {
-	long pid = __syscall(SYS_clone, SIGCHLD, NULL, NULL, NULL, NULL, NULL);
-	if (pid == -1)
-		return false;
-
-	if (pid == 0) {
-		__syscall(SYS_swapoff, NULL, NULL, NULL, NULL, NULL, NULL);
-		__syscall(SYS_exit, 0, NULL, NULL, NULL, NULL, NULL);
-		__builtin_unreachable();
-	}
-
-	int status = 0;
-	__syscall(SYS_wait4, pid, &status, 0, NULL, NULL, NULL);
-	if (WIFSIGNALED(status))
-		return true; // means it died weirdly
-	
-	return false;
+static long payload_swapoff() {
+	return __syscall(SYS_swapoff, NULL, NONE, NONE, NONE, NONE, NONE);
 }
 
-__attribute__((always_inline))
-static bool is_access_syscall_ok()
+static long payload_faccessat2() {
+	const char *devnull = "/dev/null";
+	return __syscall(SYS_faccessat2, AT_FDCWD, (long)devnull, F_OK, 0, NONE, NONE);
+}
+
+
+__attribute__((noinline))
+static bool run_forked_payload(long (*payload_fn)())
 {
 	long pid = __syscall(SYS_clone, SIGCHLD, NULL, NULL, NULL, NULL, NULL);
 	if (pid == -1)
 		return false;
 
-	const char *devnull = "/dev/null";
-
-	if (pid != 0)
+	if (!!pid)
 		goto main_thread;
-
-	// child
-	long ret = __syscall(SYS_faccessat2, AT_FDCWD, (long)devnull, F_OK, 0, NONE, NONE);
+	
+	long ret = payload_fn();
 	if (ret == -ENOSYS)
 		__syscall(SYS_exit, 123, NONE, NONE, NONE, NONE, NONE);
 	else
 		__syscall(SYS_exit, 0, NONE, NONE, NONE, NONE, NONE);
-
 	__builtin_unreachable();
 
 main_thread:
@@ -152,7 +138,7 @@ static bool affine_to_cpu(int cpu)
 __attribute__((always_inline))
 static int bench_main()
 {
-	bool is_seccomp_enabled = check_seccomp();
+	bool is_seccomp_enabled = !run_forked_payload(payload_swapoff);
 
 	// try to pin core 7, this normally is within the "big" cluster
 	if (affine_to_cpu(7))
@@ -208,7 +194,7 @@ setpriority:
 	bool is_root = !!!__syscall(SYS_getuid, NONE, NONE, NONE, NONE, NONE, NONE);
 
 	// check extra access syscalls, SYS_faccessat2 (aarch64)
-	bool has_access_sc = is_access_syscall_ok();
+	bool has_access_sc = run_forked_payload(payload_faccessat2);
 
 	if (is_root)
 		goto skip_setresuid;
