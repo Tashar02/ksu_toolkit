@@ -80,9 +80,7 @@ main_thread:
  
 #if defined(__arm__) 
 
-#define SYS_newfstatat SYS_fstatat64
 #define SYS_clock_gettime32 263
-#define SYS_setresuid16 164
 
 struct old_timespec32 {
 	int32_t	tv_sec;
@@ -141,27 +139,31 @@ bench_start:
 	print_out(result_template, sizeof(result_template) -1 );
 }
 
+__attribute__((noinline))
+static bool affine_to_cpu(int cpu)
+{
+	cpu_set_t cpuset;
+	CPU_ZERO(&cpuset);
+	CPU_SET(cpu, &cpuset);
+
+	return !!!__syscall(SYS_sched_setaffinity, 0, sizeof(cpuset), &cpuset, NONE, NONE, NONE);
+}
+
 __attribute__((always_inline))
 static int bench_main()
 {
 	bool is_seccomp_enabled = check_seccomp();
 
 	// try to pin core 7, this normally is within the "big" cluster
-	cpu_set_t cpuset = { 0 };
-	CPU_SET(7, &cpuset);
-	if (!__syscall(SYS_sched_setaffinity, 0, sizeof(cpuset), &cpuset, NONE, NONE, NONE))
-		goto setpriority;
-	
-	// for 4 + 2 chips like sd808
-	CPU_ZERO(&cpuset);
-	CPU_SET(5, &cpuset);
-	if (!__syscall(SYS_sched_setaffinity, 0, sizeof(cpuset), &cpuset, NONE, NONE, NONE))
+	if (affine_to_cpu(7))
 		goto setpriority;
 
-	CPU_ZERO(&cpuset);
-	CPU_SET(0, &cpuset);
-	// fallback to core 0, all devices have this duh
-	__syscall(SYS_sched_setaffinity, 0, sizeof(cpuset), &cpuset, NONE, NONE, NONE);
+	// for 4 + 2 chips like sd808
+	if (affine_to_cpu(5))
+		goto setpriority;
+
+	// always available
+	affine_to_cpu(0);
 
 setpriority:
 	__syscall(SYS_setpriority, 0, 0, -20, NONE, NONE, NONE);
@@ -212,6 +214,7 @@ setpriority:
 		goto skip_setresuid;
 
 #if defined(__arm__) 
+#define SYS_setresuid16 164
 	run_bench(SYS_setresuid16, 10000, 10000, 10000, NONE, NONE, NONE, "setresuid16: ");
 #endif
 
@@ -233,6 +236,9 @@ skip_setresuid:
 start_loop:
 	box_template[1] = 49 + j; // off by one, array starts with 0, humans count with 1
 
+#if defined(__arm__) 
+#define SYS_newfstatat SYS_fstatat64
+#endif
 	run_bench(SYS_execve, (long)tests[j], NULL, NULL, NONE, NONE, NONE, "execve:      ");
 	run_bench(SYS_newfstatat, AT_FDCWD, (long)tests[j], (long)&st, AT_SYMLINK_NOFOLLOW, NONE, NONE, "newfstatat:  ");
 	run_bench(SYS_faccessat, AT_FDCWD, (long)tests[j], F_OK, NONE, NONE, NONE, "faccessat:   ");
