@@ -18,7 +18,7 @@ const char iter_template[] = "[+] iterations: ";
 char newline[] = "\n";
 char result_template[] = "(0000000 ns avg)\n";
 char box_template[] = "[ ] ";
-char sucompat_seccomp_template[] = "[+] sucompat: ? | seccomp: ? \n";
+char sucompat_seccomp_root_template[] = "[+] sucompat: ? | seccomp: ? | root: ";
 
 static long payload_swapoff() {
 	return __syscall(SYS_swapoff, NULL, NONE, NONE, NONE, NONE, NONE);
@@ -145,6 +145,7 @@ static int bench_main()
 	bool has_access_sc = run_forked_payload(payload_faccessat2);
 #endif
 	bool is_seccomp_enabled = !run_forked_payload(payload_swapoff);
+	bool is_root = !!!__syscall(SYS_getuid, NONE, NONE, NONE, NONE, NONE, NONE);
 
 	// try to pin core 7, this normally is within the "big" cluster
 	if (affine_to_cpu(7))
@@ -171,16 +172,22 @@ setpriority:
 	print_out(newline, sizeof(newline) - 1 );
 
 	if (!__syscall(SYS_faccessat, AT_FDCWD, (long)"/system/bin/su", F_OK, NONE, NONE, NONE))
-		sucompat_seccomp_template[14] = 49;
+		sucompat_seccomp_root_template[14] = 49;
 	else
-		sucompat_seccomp_template[14] = 48;
+		sucompat_seccomp_root_template[14] = 48;
 
 	if (is_seccomp_enabled)
-		sucompat_seccomp_template[27] = 49;
+		sucompat_seccomp_root_template[27] = 49;
 	else
-		sucompat_seccomp_template[27] = 48;
+		sucompat_seccomp_root_template[27] = 48;
 
-	print_out(sucompat_seccomp_template, sizeof(sucompat_seccomp_template) - 1 );
+	print_out(sucompat_seccomp_root_template, sizeof(sucompat_seccomp_root_template));
+
+	const char *str_yes_no = "yes\nno\n";
+	if (is_root)
+		print_out(str_yes_no, 4 );
+	else
+		print_out(str_yes_no + 4, 3);
 
 	char iter_buf[N_ITERATIONS_DIGITS];
 	dumb_itoa(N_ITERATIONS, N_ITERATIONS_DIGITS, iter_buf);
