@@ -15,6 +15,7 @@ const char *devnull = "/dev/null";
 
 const char run_template[] = "[+] kernel: ";
 const char iter_template[] = "[+] iterations: ";
+char cpu_core_template[] = " | core: ??\n";
 char newline[] = "\n";
 char result_template[] = "(0000000 ns avg)\n";
 char box_template[] = "[ ] ";
@@ -127,7 +128,23 @@ bench_start:
 	print_out(result_template, sizeof(result_template) -1 );
 }
 
-__attribute__((noinline))
+__attribute__((always_inline))
+static int get_highest_cpu_core()
+{
+	cpu_set_t cpuset;
+	__syscall(SYS_sched_getaffinity, 0, sizeof(cpuset), &cpuset, NONE, NONE, NONE);
+
+	// we dont really have much cores on our targets, so first member is enough. assumes LE for core 0~31!
+	uint32_t lowmask = *(uint32_t __attribute__((may_alias)) *)&cpuset;
+
+	int top_cpu = 0;
+	if (lowmask)
+	    top_cpu = 31 - __builtin_clz(lowmask);
+
+	return top_cpu;
+}
+
+__attribute__((always_inline))
 static bool affine_to_cpu(int cpu)
 {
 	cpu_set_t cpuset;
@@ -147,18 +164,9 @@ static int bench_main()
 	bool is_seccomp_enabled = !run_forked_payload(payload_swapoff);
 	bool is_root = !!!__syscall(SYS_getuid, NONE, NONE, NONE, NONE, NONE, NONE);
 
-	// try to pin core 7, this normally is within the "big" cluster
-	if (affine_to_cpu(7))
-		goto setpriority;
+	int top_cpu_core = get_highest_cpu_core();
+	bool affine_ok = affine_to_cpu(top_cpu_core);
 
-	// for 4 + 2 chips like sd808
-	if (affine_to_cpu(5))
-		goto setpriority;
-
-	// always available
-	affine_to_cpu(0);
-
-setpriority:
 	__syscall(SYS_setpriority, 0, 0, -20, NONE, NONE, NONE);
 
 	struct stat st;
@@ -193,7 +201,12 @@ setpriority:
 	dumb_itoa(N_ITERATIONS, N_ITERATIONS_DIGITS, iter_buf);
 	print_out(iter_template, sizeof(iter_template) - 1);
 	print_out(iter_buf, N_ITERATIONS_DIGITS);
-	print_out(newline, sizeof(newline) - 1 );
+
+	if (affine_ok) {
+		dumb_itoa(top_cpu_core, 2, cpu_core_template + 9);
+		print_out(cpu_core_template, sizeof(cpu_core_template) -1 );
+	} else
+		print_out(newline, sizeof(newline) - 1 );
 
 	const void *nothing = nullptr;
 	const char *notsu = "/system/bin/su_";
