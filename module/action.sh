@@ -21,6 +21,8 @@ ksud feature set 0 1 > /dev/null 2>&1
 
 "$MODDIR/toolkit" --bench
 
+echo ""
+
 ksud feature set 0 0 > /dev/null 2>&1
 "$MODDIR/toolkit" --bench
 

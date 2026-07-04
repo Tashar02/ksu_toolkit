@@ -9,7 +9,7 @@ const char extra_lines[] =
 	"[2] /dev/null\n"
 	"[3] /system/bin/su_\n"
 	"[4] *unaligned*\n"
-	"[*] Lower is better\n";
+	"[*] Lower is better, * = untracked\n";
 
 const char *devnull = "/dev/null";
 
@@ -20,6 +20,9 @@ char newline[] = "\n";
 char result_template[] = "(0000000 ns avg)\n";
 char box_template[] = "[ ] ";
 char sucompat_seccomp_root_template[] = "[+] sucompat: ? | seccomp: ? | root: ";
+
+uint64_t total_avg = 0;
+char total_avg_template[] = "[+] total avgs:   000000000\n";
 
 static long payload_swapoff() {
 	return __syscall(SYS_swapoff, NULL, NONE, NONE, NONE, NONE, NONE);
@@ -109,7 +112,7 @@ static unsigned long long time_now_ns() {
 #endif // __arm__
 
 __attribute__((noinline))
-static void run_bench(long sc, long a1, long a2, long a3, long a4, long a5, long a6, char *template)
+static void run_bench(long sc, long a1, long a2, long a3, long a4, long a5, long a6, bool track, char *template)
 {
 	uint64_t t0, t1;
 	long i = 0;
@@ -126,6 +129,9 @@ bench_start:
 	print_out(template, strlen(template));
 	dumb_itoa((t1 - t0) / N_ITERATIONS, 7, result_template + 1);
 	print_out(result_template, sizeof(result_template) -1 );
+
+	if (track)
+		total_avg = total_avg + ((t1 - t0) / N_ITERATIONS);
 }
 
 __attribute__((always_inline))
@@ -179,6 +185,17 @@ static int bench_main()
 	print_out(uname.release, strlen(uname.release));
 	print_out(newline, sizeof(newline) - 1 );
 
+	char iter_buf[N_ITERATIONS_DIGITS];
+	dumb_itoa(N_ITERATIONS, N_ITERATIONS_DIGITS, iter_buf);
+	print_out(iter_template, sizeof(iter_template) - 1);
+	print_out(iter_buf, N_ITERATIONS_DIGITS);
+
+	if (affine_ok) {
+		dumb_itoa(top_cpu_core, 2, cpu_core_template + 9);
+		print_out(cpu_core_template, sizeof(cpu_core_template) -1 );
+	} else
+		print_out(newline, sizeof(newline) - 1 );
+
 	if (!__syscall(SYS_faccessat, AT_FDCWD, (long)"/system/bin/su", F_OK, NONE, NONE, NONE))
 		sucompat_seccomp_root_template[14] = 49;
 	else
@@ -196,17 +213,6 @@ static int bench_main()
 		print_out(str_yes_no, 4 );
 	else
 		print_out(str_yes_no + 4, 3);
-
-	char iter_buf[N_ITERATIONS_DIGITS];
-	dumb_itoa(N_ITERATIONS, N_ITERATIONS_DIGITS, iter_buf);
-	print_out(iter_template, sizeof(iter_template) - 1);
-	print_out(iter_buf, N_ITERATIONS_DIGITS);
-
-	if (affine_ok) {
-		dumb_itoa(top_cpu_core, 2, cpu_core_template + 9);
-		print_out(cpu_core_template, sizeof(cpu_core_template) -1 );
-	} else
-		print_out(newline, sizeof(newline) - 1 );
 
 	const void *nothing = nullptr;
 	const char *notsu = "/system/bin/su_";
@@ -233,23 +239,26 @@ start_loop:
 #if defined(__arm__) 
 #define SYS_newfstatat SYS_fstatat64
 #endif
-	run_bench(SYS_execve, (long)tests[j], NULL, NULL, NONE, NONE, NONE, "execve:      ");
-	run_bench(SYS_newfstatat, AT_FDCWD, (long)tests[j], (long)&st, AT_SYMLINK_NOFOLLOW, NONE, NONE, "newfstatat:  ");
-	run_bench(SYS_faccessat, AT_FDCWD, (long)tests[j], F_OK, NONE, NONE, NONE, "faccessat:   ");
+	run_bench(SYS_execve, (long)tests[j], NULL, NULL, NONE, NONE, NONE, true, "execve:      ");
+	run_bench(SYS_newfstatat, AT_FDCWD, (long)tests[j], (long)&st, AT_SYMLINK_NOFOLLOW, NONE, NONE, true, "newfstatat:  ");
+	run_bench(SYS_faccessat, AT_FDCWD, (long)tests[j], F_OK, NONE, NONE, NONE, true, "faccessat:   ");
 
 #if defined(__aarch64__)
 	if (has_access_sc)
-		run_bench(SYS_faccessat2, AT_FDCWD, (long)tests[j], F_OK, 0, NONE, NONE, "faccessat2:  ");
+		run_bench(SYS_faccessat2, AT_FDCWD, (long)tests[j], F_OK, 0, NONE, NONE, false, "faccessat2*: ");
 #else
-	run_bench(SYS_access, (long)tests[j], F_OK, NONE, NONE, NONE, NONE, "access:      ");
+	run_bench(SYS_access, (long)tests[j], F_OK, NONE, NONE, NONE, NONE, false, "access*:     ");
 #endif
-
-	print_out(newline, 1);
 	
 	j++;
 	
 	if (j < num_tests)
 		goto start_loop;
+
+	print_out(newline, 1);
+
+	dumb_itoa(total_avg, 9, total_avg_template + 18);
+	print_out(total_avg_template, sizeof(total_avg_template) - 1);
 
 	return 0;
 }
