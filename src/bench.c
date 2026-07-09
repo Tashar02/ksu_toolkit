@@ -19,7 +19,7 @@ char cpu_core_template[] = " | core: ??\n";
 char newline[] = "\n";
 char result_template[] = "(0000000 ns avg)\n";
 char box_template[] = "[ ] ";
-char sucompat_seccomp_root_template[] = "[+] sucompat: ? | seccomp: ? | root: ";
+char sucompat_seccomp_root_template[] = "[+] sucompat: 0 | seccomp: ? | root: ";
 
 uint64_t total_avg = 0;
 char total_avg_template[] = "[+] total avgs:   000000000\n";
@@ -192,9 +192,7 @@ static int bench_main()
 	print_out(cpu_core_template, sizeof(cpu_core_template) -1 );
 
 	if (!__syscall(SYS_faccessat, AT_FDCWD, (long)"/system/bin/su", F_OK, NONE, NONE, NONE))
-		sucompat_seccomp_root_template[14] = 49;
-	else
-		sucompat_seccomp_root_template[14] = 48;
+		sucompat_seccomp_root_template[14] = '1';
 
 	if (seccomp_status == 0)
 		sucompat_seccomp_root_template[27] = '0';
