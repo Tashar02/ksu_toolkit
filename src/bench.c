@@ -142,7 +142,7 @@ static int get_highest_cpu_core()
 
 	int top_cpu = 0;
 	if (lowmask)
-	    top_cpu = 31 - __builtin_clz(lowmask);
+	    top_cpu = 31 - __builtin_clz(lowmask); // popcount can also be used, however, clz is smaller.
 
 	return top_cpu;
 }
