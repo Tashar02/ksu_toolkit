@@ -142,7 +142,6 @@ toolkit_getuid:
 	return 0;
 
 toolkit_getlist:
-{
 	uint32_t total_size;
 
 	ksu_sys_reboot(KSU_INSTALL_MAGIC2, 0, (long)&fd);
@@ -161,13 +160,10 @@ toolkit_getlist:
 	if (!total_size)
 		goto list_empty;
 
-	// now we can prepare some memory, VLA, 4MB limit.
-	if (total_size > 4 * 1024 * 1024) {
-		__builtin_trap();
-		__builtin_unreachable();
-	}
-
-	char buffer[total_size];
+	// now we can prepare some memory
+	char *buffer = toolkit_malloc(total_size );
+	if (!buffer)
+		goto fail;
 
 	cmd.arg = (uint64_t)buffer;
 	// cmd.flags = 0;
@@ -196,7 +192,6 @@ bufwalk_start:
 
 	print_out(buffer, total_size);
 	return 0;
-}
 
 toolkit_sulog:
 	uint32_t sulog_index_next;
