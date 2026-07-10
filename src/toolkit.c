@@ -4,15 +4,16 @@ char text_v2[] = "sym: ? uid: ?????? time: ??????????\n";
 const char ok[] = { 'o', 'k', '\n'};
 const char usage[] =
 	"Usage:\n"
-	"./toolkit --bench\n"
-	"./toolkit --setuid <uid>\n"
-	"./toolkit --getuid\n"
-	"./toolkit --getlist\n"
-	"./toolkit --getinfo\n"
-	"./toolkit --sulog\n"
-	"./toolkit --setver <? uint>\n"
-	"./toolkit --setflags <? uint>\n"
-	"./toolkit --fkuname \"6.18\" \"#0 SMP ...\"\n"
+	"./toolkit\n"
+	"   --bench\n"
+	"   --setuid <uid>\n"
+	"   --getuid\n"
+	"   --getlist\n"
+	"   --getinfo\n"
+	"   --sulog\n"
+	"   --setver <? uint>\n"
+	"   --setflags <? uint>\n"
+	"   --fkuname \"6.18\" \"#0 SMP ...\"\n"
 	;
 
 char getinfo_buf_version[] = "ksuver: ??????\n";
