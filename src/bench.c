@@ -15,7 +15,6 @@ const char *devnull = "/dev/null";
 
 const char run_template[] = "[+] kernel: ";
 const char iter_template[] = "[+] iterations: ";
-char cpu_core_template[] = " | core: ??\n";
 char newline[] = "\n";
 char result_template[] = "(0000000 ns avg)\n";
 char box_template[] = "[ ] ";
@@ -23,8 +22,6 @@ char sucompat_seccomp_root_template[] = "[+] sucompat: 0 | seccomp: ? | root: ";
 
 uint64_t total_avg = 0;
 char total_avg_template[] = "[+] total avgs:   000000000\n";
-
-cpu_set_t cpuset;
 
 #if defined(__aarch64__)
 static long payload_faccessat2() {	
@@ -133,29 +130,6 @@ bench_start:
 }
 
 __attribute__((always_inline))
-static int get_highest_cpu_core()
-{
-	__syscall(SYS_sched_getaffinity, 0, sizeof(cpuset), &cpuset, NONE, NONE, NONE);
-
-	// we dont really have much cores on our targets, so first member is enough. assumes LE for core 0~31!
-	uint32_t lowmask = *(uint32_t __attribute__((may_alias)) *)&cpuset;
-
-	int top_cpu = 0;
-	if (lowmask)
-	    top_cpu = 31 - __builtin_clz(lowmask); // popcount can also be used, however, clz is smaller.
-
-	return top_cpu;
-}
-
-__attribute__((always_inline))
-static bool affine_to_cpu(int cpu)
-{
-	CPU_ZERO(&cpuset);
-	CPU_SET(cpu, &cpuset);
-	return !!!__syscall(SYS_sched_setaffinity, 0, sizeof(cpuset), &cpuset, NONE, NONE, NONE);
-}
-
-__attribute__((always_inline))
 static int bench_main()
 {
 	// check extra access syscalls, SYS_faccessat2 (aarch64)
@@ -167,9 +141,6 @@ static int bench_main()
 	int seccomp_status = __syscall(SYS_prctl, PR_GET_SECCOMP, NONE, NONE, NONE, NONE, NONE);
 
 	bool is_root = !!!__syscall(SYS_getuid, NONE, NONE, NONE, NONE, NONE, NONE);
-
-	int top_cpu_core = get_highest_cpu_core();
-	affine_to_cpu(top_cpu_core);
 
 	__syscall(SYS_setpriority, 0, 0, -20, NONE, NONE, NONE);
 
@@ -187,9 +158,6 @@ static int bench_main()
 	dumb_itoa(N_ITERATIONS, N_ITERATIONS_DIGITS, iter_buf);
 	print_out(iter_template, sizeof(iter_template) - 1);
 	print_out(iter_buf, N_ITERATIONS_DIGITS);
-
-	dumb_itoa(top_cpu_core, 2, cpu_core_template + 9);
-	print_out(cpu_core_template, sizeof(cpu_core_template) -1 );
 
 	if (!__syscall(SYS_faccessat, AT_FDCWD, (long)"/system/bin/su", F_OK, NONE, NONE, NONE))
 		sucompat_seccomp_root_template[14] = '1';

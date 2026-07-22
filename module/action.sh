@@ -7,6 +7,7 @@ PATH=/data/adb/ksu/bin:$PATH
 MODDIR="/data/adb/modules/ksu_toolkit"
 KSUDIR="/data/adb/ksu"
 HIGHEST_CPU=$(awk -F'-' '{print $NF}' /sys/devices/system/cpu/online)
+CPU_MASK=$(printf "%x" $((1 << HIGHEST_CPU)))
 CPUFREQ_DIR="/sys/devices/system/cpu/cpu$HIGHEST_CPU/cpufreq"
 MAX_FREQ_NODE="$CPUFREQ_DIR/scaling_max_freq"
 AVAIL_FREQS="$CPUFREQ_DIR/scaling_available_frequencies"
@@ -28,12 +29,12 @@ ksud feature set 3 0 > /dev/null 2>&1
 # enable sucompat
 ksud feature set 0 1 > /dev/null 2>&1
 
-"$MODDIR/toolkit" --bench
+taskset "$CPU_MASK" "$MODDIR/toolkit" --bench
 
 echo ""
 
 ksud feature set 0 0 > /dev/null 2>&1
-"$MODDIR/toolkit" --bench
+taskset "$CPU_MASK" "$MODDIR/toolkit" --bench
 
 # restore original highest CPU's max freq
 echo "$original_max_freq" > "$MAX_FREQ_NODE"
